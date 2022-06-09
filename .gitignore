@@ -1,0 +1,6 @@
+/target
+*.gb
+perf.data*
+*.sav
+flamegraph*
+log

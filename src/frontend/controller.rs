@@ -1,0 +1,9 @@
+pub struct Controller {}
+
+impl Controller {
+    pub fn new() -> Self {
+        Controller {}
+    }
+
+    pub fn update(&self, sdl: &sdl2::Sdl) {}
+}

@@ -56,27 +56,27 @@ impl Interrupts {
     }
 
     pub fn v_blank_enable(&self) -> bool {
-        (self.enable_register & V_BLANK_BITMASK) > 0
+        (self.enable_register & V_BLANK_BITMASK) != 0
     }
 
     pub fn lcd_stat_enable(&self) -> bool {
-        (self.enable_register & LCD_STAT_BITMASK) > 0
+        (self.enable_register & LCD_STAT_BITMASK) != 0
     }
 
     pub fn timer_enable(&self) -> bool {
-        (self.enable_register & TIMER_BITMASK) > 0
+        (self.enable_register & TIMER_BITMASK) != 0
     }
 
     pub fn serial_enable(&self) -> bool {
-        (self.enable_register & SERIAL_BITMASK) > 0
+        (self.enable_register & SERIAL_BITMASK) != 0
     }
 
     pub fn joypad_enable(&self) -> bool {
-        (self.enable_register & JOYPAD_BITMASK) > 0
+        (self.enable_register & JOYPAD_BITMASK) != 0
     }
 
     pub fn v_blank_request(&self) -> bool {
-        (self.request_register & V_BLANK_BITMASK) > 0
+        (self.request_register & V_BLANK_BITMASK) != 0
     }
 
     pub fn set_v_blank_request(&mut self, value: bool) {
@@ -88,7 +88,7 @@ impl Interrupts {
     }
 
     pub fn lcd_stat_request(&self) -> bool {
-        (self.request_register & LCD_STAT_BITMASK) > 0
+        (self.request_register & LCD_STAT_BITMASK) != 0
     }
 
     pub fn set_lcd_stat_request(&mut self, value: bool) {
@@ -100,7 +100,7 @@ impl Interrupts {
     }
 
     pub fn timer_request(&self) -> bool {
-        (self.request_register & TIMER_BITMASK) > 0
+        (self.request_register & TIMER_BITMASK) != 0
     }
 
     pub fn set_timer_request(&mut self, value: bool) {
@@ -112,7 +112,7 @@ impl Interrupts {
     }
 
     pub fn serial_request(&self) -> bool {
-        (self.request_register & SERIAL_BITMASK) > 0
+        (self.request_register & SERIAL_BITMASK) != 0
     }
 
     pub fn set_serial_request(&mut self, value: bool) {
@@ -124,7 +124,7 @@ impl Interrupts {
     }
 
     pub fn joypad_request(&self) -> bool {
-        (self.request_register & JOYPAD_BITMASK) > 0
+        (self.request_register & JOYPAD_BITMASK) != 0
     }
 
     pub fn set_joypad_request(&mut self, value: bool) {

@@ -43,16 +43,16 @@ const CARRY_FLAG_MASK: u8 = 1 << 4;
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
-            a: 0,
-            b: 0,
-            c: 0,
-            d: 0,
-            e: 0,
+            a: 0x1,
+            b: 0x0,
+            c: 0x13,
+            d: 0x0,
+            e: 0xD8,
             f: 0,
-            h: 0,
-            l: 0,
-            program_counter: 0,
-            stack_pointer: 0,
+            h: 0x1,
+            l: 0x4D,
+            program_counter: 0x100,
+            stack_pointer: 0xFFFE,
             disassembler: Disassembler::new(),
         }
     }
@@ -70,7 +70,6 @@ impl Cpu {
             }
             Ok(()) => {}
         };
-
         bus.next(cycles);
 
         Ok(cycles)
@@ -107,9 +106,13 @@ impl Cpu {
             Instruction::DEC(arithmetic_type) => self.dec(bus, arithmetic_type),
             Instruction::CP(target) => self.cp(bus, target),
             Instruction::ADD(arithmetic_type) => self.add(bus, arithmetic_type),
+            Instruction::ADC(target) => self.adc(bus, target),
             Instruction::SUB(target) => self.sub(bus, target),
             Instruction::RLA => self.rla(),
+            Instruction::RLCA => self.rlca(bus),
+            Instruction::CCF => self.ccf(),
             Instruction::CPL => self.cpl(bus),
+            Instruction::DAA => self.daa(bus),
             Instruction::EI => self.ei(bus),
             Instruction::DI => self.di(bus),
             Instruction::RETI => self.reti(bus),
@@ -319,6 +322,34 @@ impl Cpu {
         self.set_program_counter(address);
     }
 
+    fn daa(&mut self, bus: &mut Bus) {
+        let mut adjust = 0;
+
+        if self.halfcarry() || self.carry() {
+            adjust |= 0x06;
+        }
+
+        let result = if self.subtract() {
+            self.a.wrapping_sub(adjust)
+        } else {
+            if self.a & 0x0F > 0x09 {
+                adjust |= 0x06;
+            }
+
+            if self.a > 0x99 {
+                adjust |= 0x60;
+            }
+
+            self.a.wrapping_add(adjust)
+        };
+
+        self.set_a(result);
+
+        self.set_zero(result == 0);
+        self.set_carry(adjust & 0x60 != 0);
+        self.set_halfcarry(false);
+    }
+
     fn ret(&mut self, bus: &mut Bus, condition: JumpCondition) {
         if !self.jump_condition_met(condition) {
             return;
@@ -326,6 +357,16 @@ impl Cpu {
 
         let address = self.pop16(bus);
         self.set_program_counter(address);
+    }
+
+    fn rlca(&mut self, bus: &mut Bus) {
+        let c = self.a >> 7;
+        self.set_a((self.a << 1) | c);
+
+        self.set_carry(c != 0);
+        self.set_zero(false);
+        self.set_halfcarry(false);
+        self.set_subtract(false);
     }
 
     fn rst(&mut self, bus: &mut Bus, address: u16) {
@@ -375,8 +416,40 @@ impl Cpu {
             Instruction::RES(n) => self.res(bus, target, n),
             Instruction::BIT(n) => self.bit(bus, target, n),
             Instruction::RL => self.rl(bus, target),
+            Instruction::SLA => self.sla(bus, target),
+            Instruction::SRL => self.srl(bus, target),
             _ => panic!("Prefix Instruction unsupported: {:#X}", opcode),
         }
+    }
+
+    fn ccf(&mut self) {
+        self.set_carry(!self.carry());
+        self.set_subtract(false);
+        self.set_halfcarry(false);
+    }
+
+    fn srl(&mut self, bus: &mut Bus, target: ArithmeticByteTarget) {
+        let value = self.read_arithmetic_byte_target(bus, target);
+        self.set_carry(value & 1 != 0);
+
+        let result = value >> 1;
+        self.set_zero(result == 0);
+        self.set_subtract(false);
+        self.set_halfcarry(false);
+
+        self.write_arithmetic_byte_target(bus, target, result);
+    }
+
+    fn sla(&mut self, bus: &mut Bus, target: ArithmeticByteTarget) {
+        let value = self.read_arithmetic_byte_target(bus, target);
+        self.set_carry(value & 0x80 != 0);
+
+        let result = value << 1;
+        self.set_zero(result == 0);
+        self.set_subtract(false);
+        self.set_halfcarry(false);
+
+        self.write_arithmetic_byte_target(bus, target, result);
     }
 
     fn set(&mut self, bus: &mut Bus, target: ArithmeticByteTarget, n: u8) {
@@ -408,6 +481,24 @@ impl Cpu {
 
         self.set_subtract(true);
         self.set_halfcarry(true);
+    }
+
+    fn adc(&mut self, bus: &mut Bus, target: ArithmeticByteTarget) {
+        let value = self.read_arithmetic_byte_target(bus, target);
+
+        let x = self.a as u32;
+        let y = value as u32;
+        let carry = self.carry() as u32;
+
+        let result = x.wrapping_add(y).wrapping_add(carry);
+        let rb = result as u8;
+
+        self.set_zero(rb == 0);
+        self.set_halfcarry((x ^ y ^ result) & 0x10 != 0);
+        self.set_carry(result & 0x100 != 0);
+        self.set_subtract(false);
+
+        self.set_a(rb)
     }
 
     fn add(&mut self, bus: &mut Bus, arithmetic_type: ArithmeticType) {
@@ -546,6 +637,7 @@ impl Cpu {
                     LoadByteSource::H => self.h,
                     LoadByteSource::L => self.l,
                     LoadByteSource::MHL => bus.fetch8(self.hl()).unwrap(),
+                    LoadByteSource::MBC => bus.fetch8(self.bc()).unwrap(),
                     LoadByteSource::MDE => bus.fetch8(self.de()).unwrap(),
                     LoadByteSource::N8 => self.next_byte(bus).unwrap(),
                     LoadByteSource::DN8 => {
@@ -593,12 +685,17 @@ impl Cpu {
             LoadType::Word(target, source) => {
                 let source_value = match source {
                     LoadWordSource::N16 => self.next_word(bus).unwrap(),
+                    LoadWordSource::SP => self.stack_pointer,
                 };
                 match target {
                     LoadWordTarget::HL => self.set_hl(source_value),
                     LoadWordTarget::SP => self.set_stack_pointer(source_value),
                     LoadWordTarget::BC => self.set_bc(source_value),
                     LoadWordTarget::DE => self.set_de(source_value),
+                    LoadWordTarget::MN16 => {
+                        let address = self.next_word(bus).unwrap();
+                        bus.write16(address, source_value).unwrap();
+                    }
                 }
             }
         }
@@ -611,14 +708,14 @@ impl Cpu {
     }
 
     fn jp(&mut self, bus: &mut Bus, condition: JumpCondition, target: JumpTarget) {
-        if !self.jump_condition_met(condition) {
-            return;
-        }
-
         let address = match target {
             JumpTarget::N16 => self.next_word(bus).unwrap(),
             JumpTarget::HL => self.hl(),
         };
+
+        if !self.jump_condition_met(condition) {
+            return;
+        }
 
         self.program_counter = address;
     }
@@ -719,6 +816,13 @@ impl Cpu {
         println!("Stack trace:");
         for address in (0xFFFE..self.stack_pointer).step_by(2) {
             println!("{:#X}", bus.fetch16(address).unwrap());
+        }
+    }
+
+    fn print_memory(&self, bus: &mut Bus, start_addr: u16, end_addr: u16) {
+        for address in start_addr..=end_addr {
+            let value = bus.fetch8(address).unwrap();
+            println!("{:#X}: {:#X}", address, value);
         }
     }
 }

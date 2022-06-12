@@ -5,18 +5,16 @@ use sdl2::{rect::Point, render::Canvas, video::Window};
 
 use crate::{
     bus::FetchWrite,
+    constants::{VRAM_END_ADDRESS, VRAM_START_ADDRESS},
     frontend::display::{Display, DMG_COLOR},
     interrupts::Interrupts,
+    ram::Ram,
     register::Register8,
 };
 
-#[derive(Debug)]
-enum Mode {
-    HBLANK = 0,
-    VBLANK = 1,
-    SCAN_OAM = 2,
-    SCAN_VRAM = 3,
-}
+use self::registers::{Mode, LCDC, STAT};
+
+mod registers;
 
 const OAM_CYCLES: u32 = 80;
 const VRAM_CYCLES: u32 = 172;
@@ -39,12 +37,21 @@ const OBP1_ADDRESS: u16 = 0xFF49;
 const WY_ADDRESS: u16 = 0xFF4A;
 const WX_ADDRESS: u16 = 0xFF4B;
 
+const TILE_DATA_BLOCK_0_ADDRESS: u16 = 0x8000;
+const TILE_DATA_BLOCK_1_ADDRESS: u16 = 0x8800;
+const TILE_DATA_BLOCK_2_ADDRESS: u16 = 0x9000;
+
+const TILE_MAP_BLOCK_0_ADDRESS: u16 = 0x9800;
+const TILE_MAP_BLOCK_1_ADDRESS: u16 = 0x9C00;
+
+const TILE_LEN: u8 = 16;
+
 pub struct Gpu<'a> {
     display: &'a mut Display,
-    mode: Mode,
+    vram: Ram,
     modeclock: u32,
-    lcdc: Register8,
-    stat: Register8,
+    lcdc: LCDC,
+    stat: STAT,
     scy: Register8,
     scx: Register8,
     ly: Register8,
@@ -59,12 +66,13 @@ pub struct Gpu<'a> {
 
 impl<'a> Gpu<'a> {
     pub fn new(display: &'a mut Display) -> Self {
+        let vram: Ram = Ram::new(0x2000, VRAM_START_ADDRESS);
         Gpu {
             display,
-            mode: Mode::HBLANK,
+            vram,
             modeclock: 0,
-            lcdc: 0,
-            stat: 0,
+            lcdc: LCDC::new(),
+            stat: STAT::new(),
             scy: 0,
             scx: 0,
             ly: 0,
@@ -79,6 +87,7 @@ impl<'a> Gpu<'a> {
     }
     fn get_address_target(&mut self, address: u16) -> io::Result<&mut dyn FetchWrite> {
         match address {
+            VRAM_START_ADDRESS..=VRAM_END_ADDRESS => Ok(&mut self.vram),
             LCDC_ADDRESS => Ok(&mut self.lcdc),
             STAT_ADDRESS => Ok(&mut self.stat),
             SCY_ADDRESS => Ok(&mut self.scy),
@@ -98,37 +107,28 @@ impl<'a> Gpu<'a> {
     pub fn next(&mut self, cycles: u8, interrupts: &mut Interrupts) {
         self.modeclock += cycles as u32;
 
-        match self.mode {
+        match self.stat.get_mode() {
             Mode::SCAN_OAM => {
                 if self.modeclock >= OAM_CYCLES {
                     self.modeclock = self.modeclock % OAM_CYCLES;
-                    self.stat |= 0b11;
-                    self.mode = Mode::SCAN_VRAM;
+                    self.stat.set_mode(Mode::SCAN_VRAM);
                 }
             }
             Mode::SCAN_VRAM => {
                 if self.modeclock >= VRAM_CYCLES {
                     self.modeclock = self.modeclock % VRAM_CYCLES;
-                    self.mode = Mode::HBLANK;
+                    self.stat.set_mode(Mode::HBLANK);
 
-                    let hblank_interrupt = (self.stat & (1 << 3)) != 0;
-                    if hblank_interrupt {
+                    if self.stat.get_mode_hblank_interrupt() {
                         interrupts.set_lcd_stat_request(true);
                     }
 
-                    let lyc_interrupt = (self.stat & (1 << 6)) != 0;
-                    let lyc = self.ly == self.lyc;
-                    if lyc_interrupt && lyc {
+                    if self.stat.get_lyc_coincidence_interrupt() && self.stat.get_lyc_coincidence()
+                    {
                         interrupts.set_lcd_stat_request(true);
                     }
 
-                    if lyc {
-                        self.stat |= 1 << 2;
-                    } else {
-                        self.stat &= !(1 << 2);
-                    }
-
-                    self.stat &= !0b11;
+                    self.stat.set_lyc_match(self.stat.get_lyc_coincidence());
                 }
             }
             Mode::HBLANK => {
@@ -139,16 +139,19 @@ impl<'a> Gpu<'a> {
                     self.ly = self.ly.wrapping_add(1);
 
                     if self.ly == VBLANK_START_LINE {
-                        self.mode = Mode::VBLANK;
+                        self.stat.set_mode(Mode::VBLANK);
                         self.present_image();
 
-                        self.stat |= 0b1;
-                        self.stat &= !0b10;
                         interrupts.set_v_blank_request(true);
+
+                        if self.stat.get_mode_vblank_interrupt() {
+                            interrupts.set_lcd_stat_request(true);
+                        }
                     } else {
-                        self.mode = Mode::SCAN_OAM;
-                        self.stat &= !0b1;
-                        self.stat |= 0b10;
+                        self.stat.set_mode(Mode::SCAN_OAM);
+                        if self.stat.get_mode_oam_interrupt() {
+                            interrupts.set_lcd_stat_request(true);
+                        }
                     }
                 }
             }
@@ -158,10 +161,12 @@ impl<'a> Gpu<'a> {
                     self.ly = self.ly.wrapping_add(1);
 
                     if self.ly > VBLANK_END_LINE {
-                        self.mode = Mode::SCAN_OAM;
+                        self.stat.set_mode(Mode::SCAN_OAM);
                         self.ly = 0;
-                        self.stat &= !0b1;
-                        self.stat |= 0b10;
+
+                        if self.stat.get_mode_oam_interrupt() {
+                            interrupts.set_lcd_stat_request(true);
+                        }
                     }
                 }
             }
@@ -173,51 +178,74 @@ impl<'a> Gpu<'a> {
     }
 
     fn render_line(&mut self) {
+        if !self.lcdc.get_lcd_enable() {
+            return;
+        }
+
         for x in 0u8..160 {
             self.render_pixel(x, self.ly);
         }
     }
 
     fn render_pixel(&mut self, x: u8, y: u8) {
-        self.display.render_pixel(x, y, DMG_COLOR::DarkGrey);
+        let color = self.get_bg_color(x, y);
+        self.display.render_pixel(x, y, color);
     }
 
-    fn get_window_color(&self, x: u8, y: u8) -> DMG_COLOR {
-        let wx = self.wx.wrapping_sub(7);
-        let px = x.wrapping_sub(wx);
-        let py = y.wrapping_sub(self.wy);
+    fn get_bg_color(&mut self, x: u8, y: u8) -> DMG_COLOR {
+        let tile_index = self.get_bg_tile_index(x, y);
+        let pixel_x = x % 8;
+        let pixel_y = y % 8;
+
+        let line_pixels = self.get_tile_line(tile_index, pixel_y);
+
+        let lsb = (line_pixels >> (15 - pixel_x as u16)) & 1;
+        let msb = (line_pixels >> (7 - pixel_x as u16)) & 1;
+
+        let color = lsb | (msb << 1);
+
+        match color {
+            0 => DMG_COLOR::Black,
+            1 => DMG_COLOR::DarkGrey,
+            2 => DMG_COLOR::LightGrey,
+            3 => DMG_COLOR::White,
+            _ => panic!("Unsupported color value"),
+        }
     }
 
-    pub fn lcdc_bg_display(&self) -> bool {
-        (self.lcdc & BG_DISPLAY_BITMASK) > 0
+    fn get_tile_line(&mut self, tile_index: u8, line: u8) -> u16 {
+        let addressing_mode = self.lcdc.get_bg_characters();
+        let tile_address = match addressing_mode {
+            true => TILE_DATA_BLOCK_0_ADDRESS + (tile_index as u16 * TILE_LEN as u16),
+            false => {
+                if tile_index <= 127 {
+                    TILE_DATA_BLOCK_2_ADDRESS + (tile_index as u16 * TILE_LEN as u16)
+                } else {
+                    TILE_DATA_BLOCK_1_ADDRESS + (tile_index as u16 * TILE_LEN as u16)
+                }
+            }
+        };
+
+        let line_address = tile_address + (line as u16 * 2);
+        self.vram.fetch16(line_address).unwrap()
     }
 
-    pub fn lcdc_obj_display(&self) -> bool {
-        (self.lcdc & OBJ_DISPLAY_BITMASK) > 0
-    }
+    fn get_bg_tile_index(&mut self, x: u8, y: u8) -> u8 {
+        let bg_x = x + self.scx;
+        let bg_y = y + self.scy;
 
-    pub fn lcdc_obj_block(&self) -> bool {
-        (self.lcdc & OBJ_BLOCK_BITMASK) > 0
-    }
+        let tile_x = bg_x / 8;
+        let tile_y = bg_y / 8;
 
-    pub fn lcdc_bg_area(&self) -> bool {
-        (self.lcdc & BG_AREA_BITMASK) > 0
-    }
+        let tile_no = (tile_y as u16 * 32) + (tile_x as u16);
 
-    pub fn lcdc_bg_characters(&self) -> bool {
-        (self.lcdc & BG_CHARACTERS_BITMASK) > 0
-    }
+        let tile_map_block = self.lcdc.get_bg_area();
+        let address = match tile_map_block {
+            true => TILE_MAP_BLOCK_1_ADDRESS + tile_no,
+            false => TILE_MAP_BLOCK_0_ADDRESS + tile_no,
+        };
 
-    pub fn lcdc_window(&self) -> bool {
-        (self.lcdc & WINDOW_BITMASK) > 0
-    }
-
-    pub fn lcdc_win_area(&self) -> bool {
-        (self.lcdc & WIN_AREA_BITMASK) > 0
-    }
-
-    pub fn lcdc_controller(&self) -> bool {
-        (self.lcdc & CONTROLLER_BITMASK) > 0
+        self.vram.fetch8(address).unwrap()
     }
 }
 
@@ -246,14 +274,3 @@ impl<'a> FetchWrite for Gpu<'a> {
         target.write16(address, value)
     }
 }
-
-const BG_DISPLAY_BITMASK: u8 = 1;
-const OBJ_DISPLAY_BITMASK: u8 = 1 << 1;
-const OBJ_BLOCK_BITMASK: u8 = 1 << 2;
-const BG_AREA_BITMASK: u8 = 1 << 3;
-const BG_CHARACTERS_BITMASK: u8 = 1 << 4;
-const WINDOW_BITMASK: u8 = 1 << 5;
-const WIN_AREA_BITMASK: u8 = 1 << 6;
-const CONTROLLER_BITMASK: u8 = 1 << 7;
-
-const MODE_BITMASK: u8 = 1 | 1 << 1;

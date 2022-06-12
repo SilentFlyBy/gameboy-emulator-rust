@@ -165,6 +165,7 @@ pub fn disassemble_instruction(i: Instruction, bus: &mut Bus, pc: u16) -> String
                 LoadByteSource::E => String::from("E"),
                 LoadByteSource::H => String::from("H"),
                 LoadByteSource::L => String::from("L"),
+                LoadByteSource::MBC => String::from("[BC]"),
                 LoadByteSource::MDE => String::from("[DE]"),
                 LoadByteSource::MHL => match operation {
                     LoadOperation::HLI => String::from("[HL+]"),
@@ -172,12 +173,12 @@ pub fn disassemble_instruction(i: Instruction, bus: &mut Bus, pc: u16) -> String
                     LoadOperation::None => String::from("[HL]"),
                 },
                 LoadByteSource::N8 => {
-                    let value = bus.fetch8(pc).unwrap();
+                    let value = bus.fetch8(pc + 1).unwrap();
 
                     format!("{:#X}", value)
                 }
                 LoadByteSource::DN8 => {
-                    let value = bus.fetch8(pc).unwrap();
+                    let value = bus.fetch8(pc + 1).unwrap();
 
                     format!("[#FF00 + {:#X}]", value)
                 }
@@ -210,7 +211,7 @@ pub fn disassemble_instruction(i: Instruction, bus: &mut Bus, pc: u16) -> String
                     format!("[{:#X}]", value)
                 }
                 LoadByteTarget::DN8 => {
-                    let value = bus.fetch8(pc).unwrap();
+                    let value = bus.fetch8(pc + 1).unwrap();
 
                     format!("[#FF00 + {:#X}]", value)
                 }
@@ -226,17 +227,23 @@ pub fn disassemble_instruction(i: Instruction, bus: &mut Bus, pc: u16) -> String
 
                     format!("{:#X}", value)
                 }
+                LoadWordSource::SP => String::from("SP"),
             };
 
             let target_string = match target {
                 LoadWordTarget::HL => match operation {
-                    LoadOperation::HLI => "[HL+]",
-                    LoadOperation::HLD => "[HL-]",
-                    LoadOperation::None => "[HL]",
+                    LoadOperation::HLI => String::from("[HL+]"),
+                    LoadOperation::HLD => String::from("[HL-]"),
+                    LoadOperation::None => String::from("HL"),
                 },
-                LoadWordTarget::SP => "SP",
-                LoadWordTarget::BC => "BC",
-                LoadWordTarget::DE => "DE",
+                LoadWordTarget::SP => String::from("SP"),
+                LoadWordTarget::BC => String::from("BC"),
+                LoadWordTarget::DE => String::from("DE"),
+                LoadWordTarget::MN16 => {
+                    let value = bus.fetch16(pc + 1).unwrap();
+
+                    format!("[{:#X}]", value)
+                }
             };
 
             format!("LD {}, {}", target_string, source_string)
@@ -296,7 +303,7 @@ fn get_arithmetic_byte_target_string(
         ArithmeticByteTarget::L => String::from("L"),
         ArithmeticByteTarget::MHL => String::from("[HL]"),
         ArithmeticByteTarget::N8 => {
-            let value = bus.fetch8(pc).unwrap();
+            let value = bus.fetch8(pc + 1).unwrap();
 
             format!("{:#X}", value)
         }

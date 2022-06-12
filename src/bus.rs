@@ -2,8 +2,12 @@ use std::io;
 
 use crate::{
     boot::{BootRom, DMG_BOOT},
+    buttons::Buttons,
     cartridge::Cartridge,
-    constants::{INTERRUPT_ENABLE_ADDRESS, INTERRUPT_REQUEST_ADDRESS},
+    constants::{
+        INTERRUPT_ENABLE_ADDRESS, INTERRUPT_REQUEST_ADDRESS, VRAM_END_ADDRESS, VRAM_START_ADDRESS,
+    },
+    frontend::controller::Controller,
     gpu::Gpu,
     interrupts::Interrupts,
     ram::Ram,
@@ -23,7 +27,6 @@ pub struct Bus<'a> {
     boot_rom: BootRom,
     cartridge: Cartridge,
     wram: Ram,
-    vram: Ram,
     hram: Ram,
     pub interrupts: Interrupts,
     gpu: Gpu<'a>,
@@ -32,6 +35,7 @@ pub struct Bus<'a> {
     spu: Spu,
     null: u8,
     timer: Timer,
+    buttons: Buttons,
 }
 
 const BOOT_ROM_START_ADDRESS: u16 = 0x0;
@@ -39,9 +43,6 @@ const BOOT_ROM_END_ADDRESS: u16 = 0xFF;
 
 const ROM_START_ADDRESS: u16 = 0x0;
 const ROM_END_ADDRESS: u16 = 0x7FFF;
-
-const VRAM_START_ADDRESS: u16 = 0x8000;
-const VRAM_END_ADDRESS: u16 = 0x9FFF;
 
 const ERAM_START_ADDRESS: u16 = 0xA000;
 const ERAM_END_ADDRESS: u16 = 0xBFFF;
@@ -51,12 +52,6 @@ const WRAM_END_ADDRESS: u16 = 0xDFFF;
 
 const ECHO_WRAM_START_ADDRESS: u16 = 0xE000;
 const ECHO_WRAM_END_ADDRESS: u16 = 0xFDFF;
-
-const OAM_START_ADDRESS: u16 = 0xFE00;
-const OAM_END_ADDRESS: u16 = 0xFE9F;
-
-const IO_REGISTER_START_ADDRESS: u16 = 0xFF00;
-const IO_REGISTER_END_ADDRESS: u16 = 0xFF7F;
 
 const TIMER_START_ADDRESS: u16 = 0xFF04;
 const TIMER_END_ADDRESS: u16 = 0xFF07;
@@ -73,12 +68,11 @@ const SERIAL_CONTROL_REGISTER_ADDRESS: u16 = 0xFF02;
 const HRAM_START_ADDRESS: u16 = 0xFF80;
 const HRAM_END_ADDRESS: u16 = 0xFFFE;
 
-const IE_REGISTER_ADDRESS: u16 = 0xFFFF;
+const BUTTONS_REGISTER_ADDRESS: u16 = 0xFF00;
 
 impl<'a> Bus<'a> {
     pub fn new(cartridge: Cartridge, gpu: Gpu<'a>) -> Self {
         let wram = Ram::new(0x2000, WRAM_START_ADDRESS);
-        let vram: Ram = Ram::new(0x2000, VRAM_START_ADDRESS);
         let hram = Ram::new(0x7F, HRAM_START_ADDRESS);
         let serial_transfer = 0u8;
         let serial_control = 0u8;
@@ -87,7 +81,6 @@ impl<'a> Bus<'a> {
             boot_rom: BootRom {},
             cartridge,
             wram,
-            vram,
             hram,
             interrupts: Interrupts::new(),
             gpu,
@@ -96,6 +89,7 @@ impl<'a> Bus<'a> {
             spu,
             null: 0,
             timer: Timer::new(),
+            buttons: Buttons::new(),
         }
     }
 
@@ -111,12 +105,13 @@ impl<'a> Bus<'a> {
             ERAM_START_ADDRESS..=ERAM_END_ADDRESS => Ok(&mut self.cartridge),
             WRAM_START_ADDRESS..=WRAM_END_ADDRESS => Ok(&mut self.wram),
             ECHO_WRAM_START_ADDRESS..=ECHO_WRAM_END_ADDRESS => Ok(&mut self.wram),
-            VRAM_START_ADDRESS..=VRAM_END_ADDRESS => Ok(&mut self.vram),
+            VRAM_START_ADDRESS..=VRAM_END_ADDRESS => Ok(&mut self.gpu),
             HRAM_START_ADDRESS..=HRAM_END_ADDRESS => Ok(&mut self.hram),
             INTERRUPT_REQUEST_ADDRESS => Ok(&mut self.interrupts),
             INTERRUPT_ENABLE_ADDRESS => Ok(&mut self.interrupts),
             SERIAL_TRANSFER_REGISTER_ADDRESS => Ok(&mut self.serial_transfer),
             SERIAL_CONTROL_REGISTER_ADDRESS => Ok(&mut self.serial_control),
+            BUTTONS_REGISTER_ADDRESS => Ok(&mut self.buttons),
             GPU_REGISTER_START_ADDRESS..=GPU_REGISTER_END_ADDRESS => Ok(&mut self.gpu),
             SPU_REGISTER_START_ADDRESS..=SPU_REGISTER_END_ADDRESS => Ok(&mut self.spu),
             TIMER_START_ADDRESS..=TIMER_END_ADDRESS => Ok(&mut self.timer),

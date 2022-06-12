@@ -1,7 +1,7 @@
 #[derive(Copy, Clone)]
 pub enum Instruction {
     ADD(ArithmeticType),
-    ADC,
+    ADC(ArithmeticByteTarget),
     SUB(ArithmeticByteTarget),
     SBC,
     AND(ArithmeticByteTarget),
@@ -28,6 +28,7 @@ pub enum Instruction {
     SRA,
     SLA,
     SWAP,
+    RLCA,
     LD(LoadType, LoadOperation),
     JP(JumpCondition, JumpTarget),
     JR(JumpCondition),
@@ -36,6 +37,7 @@ pub enum Instruction {
     PUSH(ArithmeticWordTarget),
     POP(ArithmeticWordTarget),
     RST(u16),
+    DAA,
     EI,
     DI,
     RETI,
@@ -101,6 +103,7 @@ pub enum LoadByteSource {
     DN8,
     DC,
     MHL,
+    MBC,
     MDE,
     MN16,
 }
@@ -111,11 +114,13 @@ pub enum LoadWordTarget {
     DE,
     HL,
     SP,
+    MN16,
 }
 
 #[derive(Copy, Clone)]
 pub enum LoadWordSource {
     N16,
+    SP,
 }
 
 #[derive(Copy, Clone)]
@@ -163,7 +168,10 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         ),
         8,
     ),
-    (Instruction::UNDEFINED, 8),
+    (
+        Instruction::INC(ArithmeticType::Word(ArithmeticWordTarget::BC)),
+        8,
+    ),
     (
         Instruction::INC(ArithmeticType::Byte(ArithmeticByteTarget::B)),
         4,
@@ -179,13 +187,25 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         ),
         8,
     ),
-    (Instruction::UNDEFINED, 4),
-    (Instruction::UNDEFINED, 20),
+    (Instruction::RLCA, 4),
+    (
+        Instruction::LD(
+            LoadType::Word(LoadWordTarget::MN16, LoadWordSource::SP),
+            LoadOperation::None,
+        ),
+        20,
+    ),
     (
         Instruction::ADD(ArithmeticType::Word(ArithmeticWordTarget::BC)),
         8,
     ),
-    (Instruction::UNDEFINED, 8),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::A, LoadByteSource::MBC),
+            LoadOperation::None,
+        ),
+        8,
+    ),
     (
         Instruction::DEC(ArithmeticType::Word(ArithmeticWordTarget::BC)),
         8,
@@ -300,7 +320,7 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         ),
         8,
     ),
-    (Instruction::UNDEFINED, 4),
+    (Instruction::DAA, 4),
     (Instruction::JR(JumpCondition::Z), 2),
     (Instruction::UNDEFINED, 8),
     (
@@ -310,9 +330,18 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         ),
         8,
     ),
-    (Instruction::UNDEFINED, 8),
-    (Instruction::UNDEFINED, 4),
-    (Instruction::UNDEFINED, 4),
+    (
+        Instruction::DEC(ArithmeticType::Word(ArithmeticWordTarget::HL)),
+        8,
+    ),
+    (
+        Instruction::INC(ArithmeticType::Byte(ArithmeticByteTarget::L)),
+        4,
+    ),
+    (
+        Instruction::DEC(ArithmeticType::Byte(ArithmeticByteTarget::L)),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::L, LoadByteSource::N8),
@@ -322,7 +351,7 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     ),
     (Instruction::CPL, 4),
     // 3X
-    (Instruction::UNDEFINED, 2),
+    (Instruction::JR(JumpCondition::NC), 2),
     (
         Instruction::LD(
             LoadType::Word(LoadWordTarget::SP, LoadWordSource::N16),
@@ -342,7 +371,10 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         Instruction::INC(ArithmeticType::Byte(ArithmeticByteTarget::MHL)),
         12,
     ),
-    (Instruction::UNDEFINED, 12),
+    (
+        Instruction::DEC(ArithmeticType::Byte(ArithmeticByteTarget::MHL)),
+        12,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::N8),
@@ -353,7 +385,13 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     (Instruction::UNDEFINED, 4),
     (Instruction::UNDEFINED, 2),
     (Instruction::UNDEFINED, 8),
-    (Instruction::UNDEFINED, 8),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::A, LoadByteSource::MHL),
+            LoadOperation::HLD,
+        ),
+        8,
+    ),
     (Instruction::UNDEFINED, 8),
     (
         Instruction::INC(ArithmeticType::Byte(ArithmeticByteTarget::A)),
@@ -370,15 +408,57 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         ),
         8,
     ),
-    (Instruction::UNDEFINED, 4),
+    (Instruction::CCF, 4),
     // 4X
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::B),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::C),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::D),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::E),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::H),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::L),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::B, LoadByteSource::MHL),
+            LoadOperation::None,
+        ),
+        8,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::B, LoadByteSource::A),
@@ -392,7 +472,13 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::C, LoadByteSource::MHL),
+            LoadOperation::None,
+        ),
+        8,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::C, LoadByteSource::A),
@@ -401,65 +487,155 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         0,
     ),
     // 5X
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::D, LoadByteSource::B),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::D, LoadByteSource::C),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::D, LoadByteSource::D),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::D, LoadByteSource::E),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::D, LoadByteSource::H),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (Instruction::UNDEFINED, 0),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::D, LoadByteSource::MHL),
             LoadOperation::None,
         ),
-        0,
+        8,
     ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::D, LoadByteSource::A),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::E, LoadByteSource::B),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::E, LoadByteSource::C),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::E, LoadByteSource::D),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::E, LoadByteSource::E),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::E, LoadByteSource::H),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::E, LoadByteSource::L),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::E, LoadByteSource::MHL),
             LoadOperation::None,
         ),
-        0,
+        8,
     ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::E, LoadByteSource::A),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
     // 6X
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::H, LoadByteSource::B),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::H, LoadByteSource::C),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::H, LoadByteSource::D),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::H, LoadByteSource::E),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::H, LoadByteSource::H),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::H, LoadByteSource::L),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::H, LoadByteSource::MHL),
@@ -479,20 +655,50 @@ pub const OPCODES: [(Instruction, u8); 256] = [
             LoadType::Byte(LoadByteTarget::L, LoadByteSource::B),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::L, LoadByteSource::C),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::L, LoadByteSource::D),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::L, LoadByteSource::E),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::L, LoadByteSource::H),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::L, LoadByteSource::L),
+            LoadOperation::None,
+        ),
+        4,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::L, LoadByteSource::MHL),
+            LoadOperation::None,
+        ),
+        8,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::L, LoadByteSource::A),
@@ -501,40 +707,76 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         0,
     ),
     // 7X
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::B),
+            LoadOperation::None,
+        ),
+        8,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::C),
+            LoadOperation::None,
+        ),
+        8,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::D),
+            LoadOperation::None,
+        ),
+        8,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::E),
+            LoadOperation::None,
+        ),
+        8,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::H),
+            LoadOperation::None,
+        ),
+        8,
+    ),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::L),
+            LoadOperation::None,
+        ),
+        8,
+    ),
+    (Instruction::UNDEFINED, 4),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::MHL, LoadByteSource::A),
             LoadOperation::None,
         ),
-        0,
+        8,
     ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::A, LoadByteSource::B),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::A, LoadByteSource::C),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::A, LoadByteSource::D),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
     (
         Instruction::LD(
@@ -548,39 +790,66 @@ pub const OPCODES: [(Instruction, u8); 256] = [
             LoadType::Byte(LoadByteTarget::A, LoadByteSource::H),
             LoadOperation::None,
         ),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::LD(
+            LoadType::Byte(LoadByteTarget::A, LoadByteSource::L),
+            LoadOperation::None,
+        ),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::A, LoadByteSource::MHL),
             LoadOperation::None,
         ),
-        0,
+        8,
     ),
     (Instruction::UNDEFINED, 0),
     // 8X
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::B)),
+        4,
+    ),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::C)),
+        4,
+    ),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::D)),
+        4,
+    ),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::E)),
+        4,
+    ),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::H)),
+        4,
+    ),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::L)),
+        4,
+    ),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::MHL)),
+        8,
+    ),
     (
         Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::A)),
-        0,
+        4,
     ),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::ADC(ArithmeticByteTarget::B), 4),
+    (Instruction::ADC(ArithmeticByteTarget::C), 4),
+    (Instruction::ADC(ArithmeticByteTarget::D), 4),
+    (Instruction::ADC(ArithmeticByteTarget::E), 4),
+    (Instruction::ADC(ArithmeticByteTarget::H), 4),
+    (Instruction::ADC(ArithmeticByteTarget::L), 4),
+    (Instruction::ADC(ArithmeticByteTarget::MHL), 8),
+    (Instruction::ADC(ArithmeticByteTarget::A), 4),
     // 9X
-    (Instruction::SUB(ArithmeticByteTarget::B), 0),
+    (Instruction::SUB(ArithmeticByteTarget::B), 4),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
@@ -597,47 +866,50 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     // AX
-    (Instruction::UNDEFINED, 0),
-    (Instruction::AND(ArithmeticByteTarget::C), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::AND(ArithmeticByteTarget::E), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::AND(ArithmeticByteTarget::A), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::XOR(ArithmeticByteTarget::C), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::XOR(ArithmeticByteTarget::E), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::XOR(ArithmeticByteTarget::A), 0),
+    (Instruction::AND(ArithmeticByteTarget::B), 4),
+    (Instruction::AND(ArithmeticByteTarget::C), 4),
+    (Instruction::AND(ArithmeticByteTarget::D), 4),
+    (Instruction::AND(ArithmeticByteTarget::E), 4),
+    (Instruction::AND(ArithmeticByteTarget::H), 4),
+    (Instruction::AND(ArithmeticByteTarget::L), 4),
+    (Instruction::AND(ArithmeticByteTarget::MHL), 8),
+    (Instruction::AND(ArithmeticByteTarget::A), 4),
+    (Instruction::XOR(ArithmeticByteTarget::B), 4),
+    (Instruction::XOR(ArithmeticByteTarget::C), 4),
+    (Instruction::XOR(ArithmeticByteTarget::D), 4),
+    (Instruction::XOR(ArithmeticByteTarget::E), 4),
+    (Instruction::XOR(ArithmeticByteTarget::H), 4),
+    (Instruction::XOR(ArithmeticByteTarget::L), 4),
+    (Instruction::XOR(ArithmeticByteTarget::MHL), 8),
+    (Instruction::XOR(ArithmeticByteTarget::A), 4),
     // BX
-    (Instruction::OR(ArithmeticByteTarget::B), 0),
-    (Instruction::OR(ArithmeticByteTarget::C), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::OR(ArithmeticByteTarget::MHL), 0),
-    (Instruction::OR(ArithmeticByteTarget::A), 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::OR(ArithmeticByteTarget::B), 4),
+    (Instruction::OR(ArithmeticByteTarget::C), 4),
+    (Instruction::OR(ArithmeticByteTarget::D), 4),
+    (Instruction::OR(ArithmeticByteTarget::E), 4),
+    (Instruction::OR(ArithmeticByteTarget::H), 4),
+    (Instruction::OR(ArithmeticByteTarget::L), 4),
+    (Instruction::OR(ArithmeticByteTarget::MHL), 8),
+    (Instruction::OR(ArithmeticByteTarget::A), 4),
+    (Instruction::CP(ArithmeticByteTarget::B), 4),
+    (Instruction::CP(ArithmeticByteTarget::C), 4),
+    (Instruction::CP(ArithmeticByteTarget::D), 4),
+    (Instruction::CP(ArithmeticByteTarget::E), 4),
+    (Instruction::CP(ArithmeticByteTarget::H), 4),
+    (Instruction::CP(ArithmeticByteTarget::L), 4),
+    (Instruction::CP(ArithmeticByteTarget::MHL), 8),
+    (Instruction::CP(ArithmeticByteTarget::A), 4),
     // CX
     (Instruction::RET(JumpCondition::NZ), 0),
     (Instruction::POP(ArithmeticWordTarget::BC), 0),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::JP(JumpCondition::NZ, JumpTarget::N16), 0),
     (Instruction::JP(JumpCondition::NONE, JumpTarget::N16), 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::PUSH(ArithmeticWordTarget::BC), 0),
-    (Instruction::UNDEFINED, 0),
+    (
+        Instruction::ADD(ArithmeticType::Byte(ArithmeticByteTarget::N8)),
+        8,
+    ),
     (Instruction::UNDEFINED, 0),
     (Instruction::RET(JumpCondition::Z), 0),
     (Instruction::RET(JumpCondition::NONE), 0),
@@ -648,17 +920,17 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     // DX
-    (Instruction::UNDEFINED, 0),
+    (Instruction::RET(JumpCondition::NC), 0),
     (Instruction::POP(ArithmeticWordTarget::DE), 0),
     (Instruction::JP(JumpCondition::NC, JumpTarget::N16), 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
-    (Instruction::PUSH(ArithmeticWordTarget::DE), 0),
+    (Instruction::PUSH(ArithmeticWordTarget::DE), 16),
+    (Instruction::SUB(ArithmeticByteTarget::N8), 8),
     (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::RET(JumpCondition::C), 4),
     (Instruction::RETI, 16),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::JP(JumpCondition::C, JumpTarget::N16), 4),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
@@ -709,10 +981,10 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     ),
     (Instruction::POP(ArithmeticWordTarget::AF), 0),
     (Instruction::UNDEFINED, 0),
-    (Instruction::DI, 0),
+    (Instruction::DI, 4),
     (Instruction::UNDEFINED, 0),
-    (Instruction::PUSH(ArithmeticWordTarget::AF), 0),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::PUSH(ArithmeticWordTarget::AF), 16),
+    (Instruction::OR(ArithmeticByteTarget::N8), 8),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
@@ -731,40 +1003,39 @@ pub const OPCODES: [(Instruction, u8); 256] = [
 ];
 
 pub const PREFIX_CODES: [(Instruction, u8); 32] = [
-    (Instruction::RLC, 0),
-    (Instruction::RRC, 0),
-    (Instruction::RL, 0),
-    (Instruction::RR, 0),
-    (Instruction::SLA, 0),
-    (Instruction::SRA, 0),
-    (Instruction::SWAP, 0),
-    (Instruction::SRL, 0),
-    (Instruction::BIT(0), 0),
-    (Instruction::BIT(1), 0),
-    (Instruction::BIT(2), 0),
-    (Instruction::BIT(3), 0),
-    (Instruction::BIT(4), 0),
-    (Instruction::BIT(5), 0),
-    (Instruction::BIT(6), 0),
-    (Instruction::BIT(7), 0),
-    (Instruction::RES(0), 0),
-    (Instruction::RES(1), 0),
-    (Instruction::RES(2), 0),
-    (Instruction::RES(3), 0),
-    (Instruction::RES(4), 0),
-    (Instruction::RES(5), 0),
-    (Instruction::RES(6), 0),
-    (Instruction::RES(7), 0),
-    (Instruction::SET(0), 0),
-    (Instruction::SET(1), 0),
-    (Instruction::SET(2), 0),
-    (Instruction::SET(3), 0),
-    (Instruction::SET(4), 0),
-    (Instruction::SET(5), 0),
-    (Instruction::SET(6), 0),
-    (Instruction::SET(7), 0),
+    (Instruction::RLC, 8),
+    (Instruction::RRC, 8),
+    (Instruction::RL, 8),
+    (Instruction::RR, 8),
+    (Instruction::SLA, 8),
+    (Instruction::SRA, 8),
+    (Instruction::SWAP, 8),
+    (Instruction::SRL, 8),
+    (Instruction::BIT(0), 8),
+    (Instruction::BIT(1), 8),
+    (Instruction::BIT(2), 8),
+    (Instruction::BIT(3), 8),
+    (Instruction::BIT(4), 8),
+    (Instruction::BIT(5), 8),
+    (Instruction::BIT(6), 8),
+    (Instruction::BIT(7), 8),
+    (Instruction::RES(0), 8),
+    (Instruction::RES(1), 8),
+    (Instruction::RES(2), 8),
+    (Instruction::RES(3), 8),
+    (Instruction::RES(4), 8),
+    (Instruction::RES(5), 8),
+    (Instruction::RES(6), 8),
+    (Instruction::RES(7), 8),
+    (Instruction::SET(0), 8),
+    (Instruction::SET(1), 8),
+    (Instruction::SET(2), 8),
+    (Instruction::SET(3), 8),
+    (Instruction::SET(4), 8),
+    (Instruction::SET(5), 8),
+    (Instruction::SET(6), 8),
+    (Instruction::SET(7), 8),
 ];
-
 pub const PREFIX_TARGETS: [ArithmeticByteTarget; 8] = [
     ArithmeticByteTarget::B,
     ArithmeticByteTarget::C,

@@ -19,7 +19,7 @@ impl Display {
         let video_subsystem = sdl.video().unwrap();
 
         let window = video_subsystem
-            .window("rust-sdl2 demo", 1247, 675)
+            .window("rust-sdl2 demo", 800, 600)
             .position_centered()
             .resizable()
             .build()

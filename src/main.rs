@@ -12,6 +12,7 @@ use crate::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
 
 mod boot;
 mod bus;
+mod buttons;
 mod cartridge;
 mod constants;
 mod cpu;
@@ -33,20 +34,6 @@ const BATCH_DURATION_NS: i64 = GRANULARITY * (1_000_000_000 / SYSCLK_FREQ);
 const BATCH_DURATION_MS: u64 = (BATCH_DURATION_NS / 1_000_000) as u64;
 
 fn main() -> std::io::Result<()> {
-    /*let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-
-    let window = video_subsystem
-        .window("rust-sdl2 demo", 800, 600)
-        .position_centered()
-        .build()
-        .unwrap();
-
-    let mut canvas = window.into_canvas().build().unwrap();
-    canvas.set_draw_color(Color::RGB(0, 255, 255));
-    canvas.clear();
-    canvas.present();*/
-
     let frontend = Frontend::new();
     let sdl_context = frontend.get_sdl_context();
     let mut display = frontend.new_display(sdl_context);

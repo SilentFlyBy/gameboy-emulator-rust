@@ -1,35 +1,32 @@
+use emulator::gpu::Display;
+use emulator::gpu::DmgColor;
 use sdl2::{pixels::Color, rect::Rect, render::Canvas, video::Window};
 
 const SCREEN_WIDTH: u8 = 160;
 const SCREEN_HEIGHT: u8 = 144;
 
-pub enum DmgColor {
-    White,
-    LightGrey,
-    DarkGrey,
-    Black,
-}
-
-pub struct Display {
+pub struct Sdl2Display {
     canvas: Canvas<Window>,
 }
 
-impl Display {
+impl Sdl2Display {
     pub fn new(sdl: &sdl2::Sdl) -> Self {
         let video_subsystem = sdl.video().unwrap();
 
         let window = video_subsystem
-            .window("rust-sdl2 demo", 1000, 800)
+            .window("rust gameboy emulator", 1000, 800)
             .position_centered()
             .resizable()
             .build()
             .unwrap();
 
         let canvas = window.into_canvas().build().unwrap();
-        Display { canvas }
+        Sdl2Display { canvas }
     }
+}
 
-    pub fn render_pixel(&mut self, x: u8, y: u8, dmg_color: DmgColor) {
+impl Display for Sdl2Display {
+    fn render_pixel(&mut self, x: u8, y: u8, dmg_color: DmgColor) {
         let (window_width, window_height) = self.canvas.window().size();
         let viewport_x = ((x as f64 / SCREEN_WIDTH as f64) * window_width as f64).ceil() as i32;
         let viewport_y = ((y as f64 / SCREEN_HEIGHT as f64) * window_height as f64).ceil() as i32;
@@ -49,7 +46,7 @@ impl Display {
         self.canvas.fill_rect(rect).unwrap();
     }
 
-    pub fn present(&mut self) {
+    fn present(&mut self) {
         self.canvas.present();
         self.canvas.set_draw_color(Color::RGB(255, 255, 255));
         self.canvas.clear();

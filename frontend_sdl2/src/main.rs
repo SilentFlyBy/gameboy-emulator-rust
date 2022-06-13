@@ -1,34 +1,15 @@
+use clap::Parser;
+use emulator::bus::{Bus, FetchWrite};
+use emulator::cartridge::Cartridge;
+use emulator::constants::{BATCH_DURATION_MS, GRANULARITY};
+use emulator::cpu::Cpu;
+use emulator::gpu::{DmgColor, Gpu};
+use emulator::register::Register8;
+use frontend::display::Sdl2Display;
+use frontend::{Frontend, FrontendStatus};
 use std::{sync::mpsc::channel, time::Duration};
 
-use clap::Parser;
-use constants::SYSCLK_FREQ;
-use frontend::{Frontend, FrontendStatus};
-use gpu::Gpu;
-
-use crate::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
-
-mod boot;
-mod bus;
-mod buttons;
-mod cartridge;
-mod constants;
-mod cpu;
-mod disassembler;
 mod frontend;
-mod gpu;
-mod interrupts;
-mod ram;
-mod register;
-mod spu;
-mod timer;
-
-/// Number of instructions executed between sleeps (i.e. giving the
-/// hand back to the scheduler). Low values increase CPU usage and can
-/// result in poor performance, high values will cause stuttering.
-const GRANULARITY: i64 = 0x10000;
-
-const BATCH_DURATION_NS: i64 = GRANULARITY * (1_000_000_000 / SYSCLK_FREQ);
-const BATCH_DURATION_MS: u64 = (BATCH_DURATION_NS / 1_000_000) as u64;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -41,7 +22,7 @@ struct Cli {
     disassemble: bool,
 }
 
-fn main() -> std::io::Result<()> {
+fn main() {
     let cli = Cli::parse();
 
     let frontend = Frontend::new();
@@ -69,7 +50,7 @@ fn main() -> std::io::Result<()> {
 
     'running: loop {
         while cycles < GRANULARITY {
-            let cpu_cycles = cpu.next(&mut bus)? as i64;
+            let cpu_cycles = cpu.next(&mut bus).unwrap() as i64;
             cycles += cpu_cycles;
         }
 
@@ -84,6 +65,4 @@ fn main() -> std::io::Result<()> {
             _ => {}
         }
     }
-
-    Ok(())
 }

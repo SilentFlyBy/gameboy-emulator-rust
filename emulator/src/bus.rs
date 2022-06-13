@@ -7,7 +7,6 @@ use crate::{
     constants::{
         INTERRUPT_ENABLE_ADDRESS, INTERRUPT_REQUEST_ADDRESS, VRAM_END_ADDRESS, VRAM_START_ADDRESS,
     },
-    frontend::controller::Controller,
     gpu::Gpu,
     interrupts::Interrupts,
     ram::Ram,

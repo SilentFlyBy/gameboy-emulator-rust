@@ -1,4 +1,4 @@
-use crate::{bus::FetchWrite, frontend::controller::Controller};
+use crate::bus::FetchWrite;
 
 pub struct Buttons {
     value: u8,

@@ -1,12 +1,9 @@
 use core::panic;
 use std::io;
 
-use sdl2::{rect::Point, render::Canvas, video::Window};
-
 use crate::{
     bus::FetchWrite,
     constants::{VRAM_END_ADDRESS, VRAM_START_ADDRESS},
-    frontend::display::{Display, DmgColor},
     interrupts::Interrupts,
     ram::Ram,
     register::Register8,
@@ -49,8 +46,20 @@ const OAM_END_ADDRESS: u16 = 0xFE9F;
 
 const TILE_LEN: u8 = 16;
 
+pub enum DmgColor {
+    White,
+    LightGrey,
+    DarkGrey,
+    Black,
+}
+
+pub trait Display {
+    fn render_pixel(&mut self, x: u8, y: u8, dmg_color: DmgColor);
+    fn present(&mut self);
+}
+
 pub struct Gpu<'a> {
-    display: &'a mut Display,
+    display: &'a mut dyn Display,
     vram: Ram,
     modeclock: u32,
     lcdc: LCDC,
@@ -68,7 +77,7 @@ pub struct Gpu<'a> {
 }
 
 impl<'a> Gpu<'a> {
-    pub fn new(display: &'a mut Display) -> Self {
+    pub fn new(display: &'a mut dyn Display) -> Self {
         let vram: Ram = Ram::new(0x2000, VRAM_START_ADDRESS);
         Gpu {
             display,

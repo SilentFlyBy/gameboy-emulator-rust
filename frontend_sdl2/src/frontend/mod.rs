@@ -9,7 +9,7 @@ use sdl2::{
     Sdl,
 };
 
-use self::{controller::Controller, display::Display};
+use self::{controller::Controller, display::Sdl2Display};
 
 pub mod controller;
 pub mod display;
@@ -27,10 +27,8 @@ pub struct Frontend {
 impl Frontend {
     pub fn new() -> Self {
         let sdl_context = sdl2::init().unwrap();
-
-        let display = Display::new(&sdl_context);
+        let display = Sdl2Display::new(&sdl_context);
         let controller = Controller::new();
-
         Frontend {
             context: sdl_context,
             controller,
@@ -58,8 +56,8 @@ impl Frontend {
         FrontendStatus::Ok
     }
 
-    pub fn new_display(&self, sdl: &sdl2::Sdl) -> Display {
-        Display::new(sdl)
+    pub fn new_display(&self, sdl: &sdl2::Sdl) -> Sdl2Display {
+        Sdl2Display::new(sdl)
     }
 
     pub fn get_controller(&self) -> &Controller {

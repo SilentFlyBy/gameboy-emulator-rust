@@ -15,10 +15,11 @@ mod frontend;
 #[clap(author, version, about, long_about = None)]
 struct Cli {
     /// Rom file
+    #[clap(value_parser)]
     file: String,
 
     /// Print disassembly
-    #[clap(short, long)]
+    #[clap(short, long, action)]
     disassemble: bool,
 }
 

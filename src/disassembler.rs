@@ -14,16 +14,21 @@ use crate::{
 
 pub struct Disassembler {
     disassembly: HashMap<u16, String>,
+    enable: bool,
 }
 
 impl Disassembler {
-    pub fn new() -> Self {
+    pub fn new(enable: bool) -> Self {
         Disassembler {
             disassembly: HashMap::new(),
+            enable,
         }
     }
 
     pub fn disassemble(&mut self, bus: &mut Bus, instruction: Instruction, program_counter: u16) {
+        if !self.enable {
+            return;
+        }
         let disassembly = match instruction {
             Instruction::PREFIX => {
                 let prefix_code = bus.fetch8(program_counter + 1).unwrap();

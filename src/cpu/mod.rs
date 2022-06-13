@@ -41,7 +41,7 @@ const HALFCARRY_FLAG_MASK: u8 = 1 << 5;
 const CARRY_FLAG_MASK: u8 = 1 << 4;
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub fn new(disassemble: bool) -> Self {
         Cpu {
             a: 0x1,
             b: 0x0,
@@ -53,7 +53,7 @@ impl Cpu {
             l: 0x4D,
             program_counter: 0x100,
             stack_pointer: 0xFFFE,
-            disassembler: Disassembler::new(),
+            disassembler: Disassembler::new(disassemble),
         }
     }
     pub fn next(&mut self, bus: &mut Bus) -> std::io::Result<u8> {
@@ -82,8 +82,8 @@ impl Cpu {
     ) -> std::io::Result<(Instruction, u8)> {
         let (instruction, cycles) = OPCODES[opcode as usize];
 
-        /*self.disassembler
-        .disassemble(bus, instruction, self.program_counter - 1);*/
+        self.disassembler
+            .disassemble(bus, instruction, self.program_counter - 1);
 
         Ok((instruction, cycles))
     }

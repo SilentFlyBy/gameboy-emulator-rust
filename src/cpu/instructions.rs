@@ -383,7 +383,7 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         12,
     ),
     (Instruction::UNDEFINED, 4),
-    (Instruction::UNDEFINED, 2),
+    (Instruction::JR(JumpCondition::C), 2),
     (Instruction::UNDEFINED, 8),
     (
         Instruction::LD(

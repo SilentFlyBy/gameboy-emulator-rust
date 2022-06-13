@@ -6,7 +6,7 @@ use sdl2::{rect::Point, render::Canvas, video::Window};
 use crate::{
     bus::FetchWrite,
     constants::{VRAM_END_ADDRESS, VRAM_START_ADDRESS},
-    frontend::display::{Display, DMG_COLOR},
+    frontend::display::{Display, DmgColor},
     interrupts::Interrupts,
     ram::Ram,
     register::Register8,
@@ -43,6 +43,9 @@ const TILE_DATA_BLOCK_2_ADDRESS: u16 = 0x9000;
 
 const TILE_MAP_BLOCK_0_ADDRESS: u16 = 0x9800;
 const TILE_MAP_BLOCK_1_ADDRESS: u16 = 0x9C00;
+
+const OAM_START_ADDRESS: u16 = 0xFE00;
+const OAM_END_ADDRESS: u16 = 0xFE9F;
 
 const TILE_LEN: u8 = 16;
 
@@ -189,10 +192,25 @@ impl<'a> Gpu<'a> {
 
     fn render_pixel(&mut self, x: u8, y: u8) {
         let color = self.get_bg_color(x, y);
+
         self.display.render_pixel(x, y, color);
     }
 
-    fn get_bg_color(&mut self, x: u8, y: u8) -> DMG_COLOR {
+    fn get_sprite_color(&mut self, x: u8, y: u8) -> u8 {
+        for address in (OAM_START_ADDRESS..OAM_END_ADDRESS).step_by(4) {
+            let sprite_y = self.vram.fetch8(address).unwrap();
+            let sprite_x = self.vram.fetch8(address + 1).unwrap();
+            if !(x >= sprite_x + 8 && x <= sprite_x + 16) {
+                return 0;
+            }
+            let tile_index = self.vram.fetch8(address + 2).unwrap();
+            let attrs = self.vram.fetch8(address + 3).unwrap();
+        }
+
+        0
+    }
+
+    fn get_bg_color(&mut self, x: u8, y: u8) -> DmgColor {
         let tile_index = self.get_bg_tile_index(x, y);
         let pixel_x = x % 8;
         let pixel_y = y % 8;
@@ -204,11 +222,13 @@ impl<'a> Gpu<'a> {
 
         let color = lsb | (msb << 1);
 
-        match color {
-            0 => DMG_COLOR::Black,
-            1 => DMG_COLOR::DarkGrey,
-            2 => DMG_COLOR::LightGrey,
-            3 => DMG_COLOR::White,
+        let palette_color = (self.bgp >> (color * 2)) & 0b11;
+
+        match palette_color {
+            0 => DmgColor::White,
+            1 => DmgColor::LightGrey,
+            2 => DmgColor::DarkGrey,
+            3 => DmgColor::Black,
             _ => panic!("Unsupported color value"),
         }
     }

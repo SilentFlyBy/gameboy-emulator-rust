@@ -1,12 +1,9 @@
-use std::{
-    sync::mpsc::channel,
-    time::{Duration, Instant},
-};
+use std::{sync::mpsc::channel, time::Duration};
 
+use clap::Parser;
 use constants::SYSCLK_FREQ;
 use frontend::{Frontend, FrontendStatus};
 use gpu::Gpu;
-use sdl2::{event::Event, keyboard::Keycode, pixels::Color};
 
 use crate::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
 
@@ -33,13 +30,26 @@ const GRANULARITY: i64 = 0x10000;
 const BATCH_DURATION_NS: i64 = GRANULARITY * (1_000_000_000 / SYSCLK_FREQ);
 const BATCH_DURATION_MS: u64 = (BATCH_DURATION_NS / 1_000_000) as u64;
 
+#[derive(Parser)]
+#[clap(author, version, about, long_about = None)]
+struct Cli {
+    /// Rom file
+    file: String,
+
+    /// Print disassembly
+    #[clap(short, long)]
+    disassemble: bool,
+}
+
 fn main() -> std::io::Result<()> {
+    let cli = Cli::parse();
+
     let frontend = Frontend::new();
     let sdl_context = frontend.get_sdl_context();
     let mut display = frontend.new_display(sdl_context);
 
-    let mut cpu = Cpu::new();
-    let cartridge = Cartridge::new("tetris.gb");
+    let mut cpu = Cpu::new(cli.disassemble);
+    let cartridge = Cartridge::new(cli.file.as_str());
     let gpu = Gpu::new(&mut display);
     let mut bus = Bus::new(cartridge, gpu);
 

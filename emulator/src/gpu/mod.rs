@@ -1,9 +1,9 @@
-use core::panic;
+use core::{num, panic};
 use std::io;
 
 use crate::{
     bus::FetchWrite,
-    constants::{VRAM_END_ADDRESS, VRAM_START_ADDRESS},
+    constants::{OAM_END_ADDRESS, OAM_START_ADDRESS, VRAM_END_ADDRESS, VRAM_START_ADDRESS},
     interrupts::Interrupts,
     ram::Ram,
     register::Register8,
@@ -41,9 +41,6 @@ const TILE_DATA_BLOCK_2_ADDRESS: u16 = 0x9000;
 const TILE_MAP_BLOCK_0_ADDRESS: u16 = 0x9800;
 const TILE_MAP_BLOCK_1_ADDRESS: u16 = 0x9C00;
 
-const OAM_START_ADDRESS: u16 = 0xFE00;
-const OAM_END_ADDRESS: u16 = 0xFE9F;
-
 const TILE_LEN: u8 = 16;
 
 pub enum DmgColor {
@@ -61,6 +58,7 @@ pub trait Display {
 pub struct Gpu<'a> {
     display: &'a mut dyn Display,
     vram: Ram,
+    oam: Ram,
     modeclock: u32,
     lcdc: LCDC,
     stat: STAT,
@@ -74,14 +72,17 @@ pub struct Gpu<'a> {
     obp1: Register8,
     wy: Register8,
     wx: Register8,
+    selected_oam_objects: [u16; 10],
 }
 
 impl<'a> Gpu<'a> {
     pub fn new(display: &'a mut dyn Display) -> Self {
         let vram: Ram = Ram::new(0x2000, VRAM_START_ADDRESS);
+        let oam: Ram = Ram::new(0xA0, OAM_START_ADDRESS);
         Gpu {
             display,
             vram,
+            oam,
             modeclock: 0,
             lcdc: LCDC::new(),
             stat: STAT::new(),
@@ -95,11 +96,13 @@ impl<'a> Gpu<'a> {
             obp1: 0,
             wy: 0,
             wx: 0,
+            selected_oam_objects: [0x0; 10],
         }
     }
     fn get_address_target(&mut self, address: u16) -> io::Result<&mut dyn FetchWrite> {
         match address {
             VRAM_START_ADDRESS..=VRAM_END_ADDRESS => Ok(&mut self.vram),
+            OAM_START_ADDRESS..=OAM_END_ADDRESS => Ok(&mut self.oam),
             LCDC_ADDRESS => Ok(&mut self.lcdc),
             STAT_ADDRESS => Ok(&mut self.stat),
             SCY_ADDRESS => Ok(&mut self.scy),
@@ -114,6 +117,10 @@ impl<'a> Gpu<'a> {
             WX_ADDRESS => Ok(&mut self.wx),
             _ => panic!("Address violation: {:#X}", address),
         }
+    }
+
+    pub fn get_dma(&self) -> u8 {
+        self.dma
     }
 
     pub fn next(&mut self, cycles: u8, interrupts: &mut Interrupts) {
@@ -194,29 +201,75 @@ impl<'a> Gpu<'a> {
             return;
         }
 
+        self.select_oam_objects();
+
         for x in 0u8..160 {
             self.render_pixel(x, self.ly);
         }
     }
 
+    fn select_oam_objects(&mut self) {
+        for object in self.selected_oam_objects.iter_mut() {
+            *object = 0x0;
+        }
+
+        let mut num_obj = 0;
+
+        for address in (OAM_START_ADDRESS..OAM_END_ADDRESS).step_by(4) {
+            if num_obj > 9 {
+                break;
+            }
+
+            let obj_size = if self.lcdc.get_obj_size() { 16 } else { 8 };
+            let y_position = self.oam.fetch8(address).unwrap();
+            if self.ly as i32 >= (y_position as i32 - 16)
+                && self.ly as i32 <= (y_position as i32 - 16 + obj_size)
+            {
+                self.selected_oam_objects[num_obj] = address;
+                num_obj += 1;
+            }
+        }
+    }
+
     fn render_pixel(&mut self, x: u8, y: u8) {
-        let color = self.get_bg_color(x, y);
+        let mut color = self.get_bg_color(x, y);
+        if self.lcdc.get_obj_enable() {
+            color = self.get_obj_color(x, y, color);
+        }
 
         self.display.render_pixel(x, y, color);
     }
 
-    fn get_sprite_color(&mut self, x: u8, y: u8) -> u8 {
-        for address in (OAM_START_ADDRESS..OAM_END_ADDRESS).step_by(4) {
-            let sprite_y = self.vram.fetch8(address).unwrap();
-            let sprite_x = self.vram.fetch8(address + 1).unwrap();
-            if !(x >= sprite_x + 8 && x <= sprite_x + 16) {
-                return 0;
+    fn get_obj_color(&mut self, x: u8, y: u8, color: DmgColor) -> DmgColor {
+        for address in self.selected_oam_objects {
+            if address == 0x0 {
+                break;
             }
-            let tile_index = self.vram.fetch8(address + 2).unwrap();
-            let attrs = self.vram.fetch8(address + 3).unwrap();
+
+            let y_position = self.oam.fetch8(address).unwrap() as i32 - 16;
+            let x_position = self.oam.fetch8(address + 1).unwrap() as i32 - 8;
+            let mut tile_index = self.oam.fetch8(address + 2).unwrap();
+            let attrs = self.oam.fetch8(address + 3).unwrap();
+
+            if x as i32 >= x_position && x as i32 <= x_position + 8 {
+                if self.lcdc.get_obj_size() && y as i32 > y_position + 8 {
+                    tile_index += 1;
+                }
+
+                // println!("{:#X} {:#X}", tile_index, attrs);
+
+                let line_x = x as i32 - x_position;
+                let line_y = y as i32 - y_position;
+                let tile_address =
+                    TILE_DATA_BLOCK_0_ADDRESS + (tile_index as u16 * TILE_LEN as u16);
+                let line_address = tile_address + (line_y as u16 * 2);
+                let tile_line = self.vram.fetch16(line_address).unwrap();
+
+                return self.get_line_pixel_color(tile_line, line_x as u8);
+            }
         }
 
-        0
+        color
     }
 
     fn get_bg_color(&mut self, x: u8, y: u8) -> DmgColor {
@@ -224,25 +277,12 @@ impl<'a> Gpu<'a> {
         let pixel_x = x % 8;
         let pixel_y = y % 8;
 
-        let line_pixels = self.get_tile_line(tile_index, pixel_y);
+        let line_pixels = self.get_bg_tile_line(tile_index, pixel_y);
 
-        let lsb = (line_pixels >> (15 - pixel_x as u16)) & 1;
-        let msb = (line_pixels >> (7 - pixel_x as u16)) & 1;
-
-        let color = lsb | (msb << 1);
-
-        let palette_color = (self.bgp >> (color * 2)) & 0b11;
-
-        match palette_color {
-            0 => DmgColor::White,
-            1 => DmgColor::LightGrey,
-            2 => DmgColor::DarkGrey,
-            3 => DmgColor::Black,
-            _ => panic!("Unsupported color value"),
-        }
+        self.get_line_pixel_color(line_pixels, pixel_x)
     }
 
-    fn get_tile_line(&mut self, tile_index: u8, line: u8) -> u16 {
+    fn get_bg_tile_line(&mut self, tile_index: u8, line: u8) -> u16 {
         let addressing_mode = self.lcdc.get_bg_characters();
         let tile_address = match addressing_mode {
             true => TILE_DATA_BLOCK_0_ADDRESS + (tile_index as u16 * TILE_LEN as u16),
@@ -275,6 +315,23 @@ impl<'a> Gpu<'a> {
         };
 
         self.vram.fetch8(address).unwrap()
+    }
+
+    fn get_line_pixel_color(&self, line: u16, line_x: u8) -> DmgColor {
+        let lsb = (line >> (15 - line_x as u16)) & 1;
+        let msb = (line >> (7 - line_x as u16)) & 1;
+
+        let color = lsb | (msb << 1);
+
+        let palette_color = (self.bgp >> (color * 2)) & 0b11;
+
+        match palette_color {
+            0 => DmgColor::White,
+            1 => DmgColor::LightGrey,
+            2 => DmgColor::DarkGrey,
+            3 => DmgColor::Black,
+            _ => panic!("Unsupported color value"),
+        }
     }
 }
 

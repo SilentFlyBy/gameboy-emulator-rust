@@ -271,7 +271,10 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         ),
         8,
     ),
-    (Instruction::UNDEFINED, 8),
+    (
+        Instruction::DEC(ArithmeticType::Word(ArithmeticWordTarget::DE)),
+        8,
+    ),
     (
         Instruction::INC(ArithmeticType::Byte(ArithmeticByteTarget::E)),
         4,

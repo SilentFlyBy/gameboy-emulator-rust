@@ -322,6 +322,17 @@ impl Cpu {
         self.set_program_counter(address);
     }
 
+    fn dma_transfer(&mut self, bus: &mut Bus) {
+        let start_address = (bus.gpu.get_dma() as u16) << 8;
+        let end_address = start_address | 0x9F;
+
+        for address in start_address..=end_address {
+            let value = bus.fetch8(address).unwrap();
+            let destination_address = (address & 0x00FF) | 0xFE00;
+            bus.write8(destination_address, value).unwrap();
+        }
+    }
+
     fn daa(&mut self, bus: &mut Bus) {
         let mut adjust = 0;
 
@@ -675,6 +686,10 @@ impl Cpu {
                         let n = self.next_byte(bus).unwrap();
                         let address = n as u16 | 0xFF00;
                         bus.write8(address, source_value).unwrap();
+
+                        if address == 0xFF46 {
+                            self.dma_transfer(bus);
+                        }
                     }
                     LoadByteTarget::DC => {
                         let address = self.c as u16 | 0xFF00;

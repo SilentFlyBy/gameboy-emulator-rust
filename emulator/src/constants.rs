@@ -19,3 +19,6 @@ pub const INTERRUPT_ENABLE_ADDRESS: u16 = 0xFFFF;
 
 pub const VRAM_START_ADDRESS: u16 = 0x8000;
 pub const VRAM_END_ADDRESS: u16 = 0x9FFF;
+
+pub const OAM_START_ADDRESS: u16 = 0xFE00;
+pub const OAM_END_ADDRESS: u16 = 0xFE9F;

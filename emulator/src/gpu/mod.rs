@@ -18,7 +18,7 @@ const VRAM_CYCLES: u32 = 172;
 const HBLANK_CYCLES: u32 = 204;
 const SCANLINE_CYCLES: u32 = 456;
 
-const VBLANK_START_LINE: u8 = 143;
+const VBLANK_START_LINE: u8 = 144;
 const VBLANK_END_LINE: u8 = 153;
 
 const LCDC_ADDRESS: u16 = 0xFF40;
@@ -223,7 +223,7 @@ impl<'a> Gpu<'a> {
             let obj_size = if self.lcdc.get_obj_size() { 16 } else { 8 };
             let y_position = self.oam.fetch8(address).unwrap();
             if self.ly as i32 >= (y_position as i32 - 16)
-                && self.ly as i32 <= (y_position as i32 - 16 + obj_size)
+                && (self.ly as i32) < (y_position as i32 - 16 + obj_size)
             {
                 self.selected_oam_objects[num_obj] = address;
                 num_obj += 1;
@@ -251,12 +251,10 @@ impl<'a> Gpu<'a> {
             let mut tile_index = self.oam.fetch8(address + 2).unwrap();
             let attrs = self.oam.fetch8(address + 3).unwrap();
 
-            if x as i32 >= x_position && x as i32 <= x_position + 8 {
+            if x as i32 >= x_position && (x as i32) < x_position + 8 {
                 if self.lcdc.get_obj_size() && y as i32 > y_position + 8 {
                     tile_index += 1;
                 }
-
-                // println!("{:#X} {:#X}", tile_index, attrs);
 
                 let line_x = x as i32 - x_position;
                 let line_y = y as i32 - y_position;

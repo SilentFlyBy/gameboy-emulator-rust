@@ -35,7 +35,7 @@ pub struct Bus<'a> {
     spu: Spu,
     null: u8,
     timer: Timer,
-    buttons: Buttons,
+    pub buttons: Buttons,
 }
 
 const BOOT_ROM_START_ADDRESS: u16 = 0x0;

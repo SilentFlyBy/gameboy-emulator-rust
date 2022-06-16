@@ -1,6 +1,6 @@
 mod boot;
 pub mod bus;
-mod buttons;
+pub mod buttons;
 pub mod cartridge;
 pub mod constants;
 pub mod cpu;

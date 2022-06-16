@@ -61,7 +61,7 @@ fn main() {
             panic!("Timer died: {:?}", e);
         }
 
-        match frontend.update() {
+        match frontend.update(&mut bus) {
             FrontendStatus::Quit => break 'running,
             _ => {}
         }

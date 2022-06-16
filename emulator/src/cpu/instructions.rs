@@ -315,7 +315,10 @@ pub const OPCODES: [(Instruction, u8); 256] = [
         Instruction::INC(ArithmeticType::Byte(ArithmeticByteTarget::H)),
         4,
     ),
-    (Instruction::UNDEFINED, 4),
+    (
+        Instruction::DEC(ArithmeticType::Byte(ArithmeticByteTarget::H)),
+        4,
+    ),
     (
         Instruction::LD(
             LoadType::Byte(LoadByteTarget::H, LoadByteSource::N8),
@@ -853,12 +856,12 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     (Instruction::ADC(ArithmeticByteTarget::A), 4),
     // 9X
     (Instruction::SUB(ArithmeticByteTarget::B), 4),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
+    (Instruction::SUB(ArithmeticByteTarget::C), 4),
+    (Instruction::SUB(ArithmeticByteTarget::D), 4),
+    (Instruction::SUB(ArithmeticByteTarget::E), 4),
+    (Instruction::SUB(ArithmeticByteTarget::H), 4),
+    (Instruction::SUB(ArithmeticByteTarget::L), 4),
+    (Instruction::SUB(ArithmeticByteTarget::MHL), 8),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
@@ -972,8 +975,8 @@ pub const OPCODES: [(Instruction, u8); 256] = [
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
     (Instruction::UNDEFINED, 0),
-    (Instruction::UNDEFINED, 0),
-    (Instruction::RST(0x28), 0),
+    (Instruction::XOR(ArithmeticByteTarget::N8), 8),
+    (Instruction::RST(0x28), 16),
     // FX
     (
         Instruction::LD(

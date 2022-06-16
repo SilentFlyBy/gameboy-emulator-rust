@@ -1,5 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 
+use emulator::bus::Bus;
 use sdl2::{
     event::{Event, WindowEvent},
     keyboard::Keycode,
@@ -35,7 +36,7 @@ impl Frontend {
         }
     }
 
-    pub fn update(&self) -> FrontendStatus {
+    pub fn update(&self, bus: &mut Bus) -> FrontendStatus {
         let mut event_pump = self.context.event_pump().unwrap();
 
         for event in event_pump.poll_iter() {
@@ -49,7 +50,7 @@ impl Frontend {
                     win_event: WindowEvent::Resized(..),
                     ..
                 } => {}
-                _ => {}
+                _ => self.controller.update(event, bus),
             }
         }
 

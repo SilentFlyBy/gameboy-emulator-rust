@@ -1,11 +1,9 @@
 use clap::Parser;
-use emulator::bus::{Bus, FetchWrite};
+use emulator::bus::Bus;
 use emulator::cartridge::Cartridge;
 use emulator::constants::{BATCH_DURATION_MS, GRANULARITY};
 use emulator::cpu::Cpu;
-use emulator::gpu::{DmgColor, Gpu};
-use emulator::register::Register8;
-use frontend::display::Sdl2Display;
+use emulator::gpu::Gpu;
 use frontend::{Frontend, FrontendStatus};
 use std::{sync::mpsc::channel, time::Duration};
 

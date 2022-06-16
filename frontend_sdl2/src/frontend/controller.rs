@@ -1,4 +1,4 @@
-use emulator::{bus::Bus, buttons::Buttons, register::Register8};
+use emulator::bus::Bus;
 use sdl2::{event::Event, keyboard::Keycode};
 
 pub struct Controller {}

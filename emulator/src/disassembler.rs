@@ -32,7 +32,7 @@ impl Disassembler {
         let disassembly = match instruction {
             Instruction::PREFIX => {
                 let prefix_code = bus.fetch8(program_counter + 1).unwrap();
-                let ((prefix_instruction, cycles), target) = parse_prefix_instruction(prefix_code);
+                let ((prefix_instruction, _), target) = parse_prefix_instruction(prefix_code);
 
                 match self.disassembly.entry(program_counter) {
                     Entry::Occupied(o) => o.into_mut(),

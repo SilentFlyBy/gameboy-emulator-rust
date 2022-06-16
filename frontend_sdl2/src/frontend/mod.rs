@@ -1,12 +1,9 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
 
 use emulator::bus::Bus;
 use sdl2::{
     event::{Event, WindowEvent},
     keyboard::Keycode,
-    pixels::Color,
-    render::Canvas,
-    video::Window,
     Sdl,
 };
 
@@ -15,6 +12,7 @@ use self::{controller::Controller, display::Sdl2Display};
 pub mod controller;
 pub mod display;
 
+#[allow(dead_code)]
 pub enum FrontendStatus {
     Ok,
     Quit,
@@ -28,7 +26,7 @@ pub struct Frontend {
 impl Frontend {
     pub fn new() -> Self {
         let sdl_context = sdl2::init().unwrap();
-        let display = Sdl2Display::new(&sdl_context);
+        Sdl2Display::new(&sdl_context);
         let controller = Controller::new();
         Frontend {
             context: sdl_context,
@@ -59,10 +57,6 @@ impl Frontend {
 
     pub fn new_display(&self, sdl: &sdl2::Sdl) -> Sdl2Display {
         Sdl2Display::new(sdl)
-    }
-
-    pub fn get_controller(&self) -> &Controller {
-        self.controller.borrow()
     }
 
     pub fn get_sdl_context(&self) -> &sdl2::Sdl {

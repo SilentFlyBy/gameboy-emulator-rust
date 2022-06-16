@@ -1,4 +1,4 @@
-use core::{num, panic};
+use core::panic;
 use std::io;
 
 use crate::{
@@ -127,16 +127,16 @@ impl<'a> Gpu<'a> {
         self.modeclock += cycles as u32;
 
         match self.stat.get_mode() {
-            Mode::SCAN_OAM => {
+            Mode::ScanOam => {
                 if self.modeclock >= OAM_CYCLES {
                     self.modeclock = self.modeclock % OAM_CYCLES;
-                    self.stat.set_mode(Mode::SCAN_VRAM);
+                    self.stat.set_mode(Mode::ScanVram);
                 }
             }
-            Mode::SCAN_VRAM => {
+            Mode::ScanVram => {
                 if self.modeclock >= VRAM_CYCLES {
                     self.modeclock = self.modeclock % VRAM_CYCLES;
-                    self.stat.set_mode(Mode::HBLANK);
+                    self.stat.set_mode(Mode::HBlank);
 
                     if self.stat.get_mode_hblank_interrupt() {
                         interrupts.set_lcd_stat_request(true);
@@ -150,7 +150,7 @@ impl<'a> Gpu<'a> {
                     self.stat.set_lyc_match(self.stat.get_lyc_coincidence());
                 }
             }
-            Mode::HBLANK => {
+            Mode::HBlank => {
                 if self.modeclock >= HBLANK_CYCLES {
                     self.modeclock = self.modeclock % HBLANK_CYCLES;
 
@@ -158,7 +158,7 @@ impl<'a> Gpu<'a> {
                     self.ly = self.ly.wrapping_add(1);
 
                     if self.ly == VBLANK_START_LINE {
-                        self.stat.set_mode(Mode::VBLANK);
+                        self.stat.set_mode(Mode::VBlank);
                         self.present_image();
 
                         interrupts.set_v_blank_request(true);
@@ -167,20 +167,20 @@ impl<'a> Gpu<'a> {
                             interrupts.set_lcd_stat_request(true);
                         }
                     } else {
-                        self.stat.set_mode(Mode::SCAN_OAM);
+                        self.stat.set_mode(Mode::ScanOam);
                         if self.stat.get_mode_oam_interrupt() {
                             interrupts.set_lcd_stat_request(true);
                         }
                     }
                 }
             }
-            Mode::VBLANK => {
+            Mode::VBlank => {
                 if self.modeclock >= SCANLINE_CYCLES {
                     self.modeclock = self.modeclock % SCANLINE_CYCLES;
                     self.ly = self.ly.wrapping_add(1);
 
                     if self.ly > VBLANK_END_LINE {
-                        self.stat.set_mode(Mode::SCAN_OAM);
+                        self.stat.set_mode(Mode::ScanOam);
                         self.ly = 0;
 
                         if self.stat.get_mode_oam_interrupt() {
@@ -249,7 +249,7 @@ impl<'a> Gpu<'a> {
             let y_position = self.oam.fetch8(address).unwrap() as i32 - 16;
             let x_position = self.oam.fetch8(address + 1).unwrap() as i32 - 8;
             let mut tile_index = self.oam.fetch8(address + 2).unwrap();
-            let attrs = self.oam.fetch8(address + 3).unwrap();
+            // let attrs = self.oam.fetch8(address + 3).unwrap();
 
             if x as i32 >= x_position && (x as i32) < x_position + 8 {
                 if self.lcdc.get_obj_size() && y as i32 > y_position + 8 {

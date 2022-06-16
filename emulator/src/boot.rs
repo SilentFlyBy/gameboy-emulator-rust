@@ -33,11 +33,11 @@ impl FetchWrite for BootRom {
         Ok(((val1 as u16) << 8) | val2 as u16)
     }
 
-    fn write8(&mut self, address: u16, value: u8) -> std::io::Result<()> {
+    fn write8(&mut self, _: u16, _: u8) -> std::io::Result<()> {
         panic!("Can't write to bootrom!");
     }
 
-    fn write16(&mut self, address: u16, value: u16) -> std::io::Result<()> {
+    fn write16(&mut self, _: u16, _: u16) -> std::io::Result<()> {
         panic!("Can't write to bootrom!");
     }
 }

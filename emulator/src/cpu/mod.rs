@@ -1,7 +1,4 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    io::{self, ErrorKind},
-};
+use std::io::{self, ErrorKind};
 
 use crate::{
     bus::{Bus, FetchWrite},
@@ -14,7 +11,7 @@ use self::{
     instructions::{
         ArithmeticByteTarget, ArithmeticType, ArithmeticWordTarget, Instruction, JumpCondition,
         JumpTarget, LoadByteSource, LoadByteTarget, LoadOperation, LoadType, LoadWordSource,
-        LoadWordTarget, PREFIX_CODES, PREFIX_TARGETS,
+        LoadWordTarget,
     },
 };
 
@@ -109,10 +106,10 @@ impl Cpu {
             Instruction::ADC(target) => self.adc(bus, target),
             Instruction::SUB(target) => self.sub(bus, target),
             Instruction::RLA => self.rla(),
-            Instruction::RLCA => self.rlca(bus),
+            Instruction::RLCA => self.rlca(),
             Instruction::CCF => self.ccf(),
-            Instruction::CPL => self.cpl(bus),
-            Instruction::DAA => self.daa(bus),
+            Instruction::CPL => self.cpl(),
+            Instruction::DAA => self.daa(),
             Instruction::EI => self.ei(bus),
             Instruction::DI => self.di(bus),
             Instruction::RETI => self.reti(bus),
@@ -302,13 +299,13 @@ impl Cpu {
     }
 
     fn push(&mut self, bus: &mut Bus, target: ArithmeticWordTarget) {
-        let value = self.read_arithmetic_word_target(bus, target);
+        let value = self.read_arithmetic_word_target(target);
         self.push16(bus, value);
     }
 
     fn pop(&mut self, bus: &mut Bus, target: ArithmeticWordTarget) {
         let value = self.pop16(bus);
-        self.write_arithmetic_word_target(bus, target, value);
+        self.write_arithmetic_word_target(target, value);
     }
 
     fn call(&mut self, bus: &mut Bus, condition: JumpCondition) {
@@ -333,7 +330,7 @@ impl Cpu {
         }
     }
 
-    fn daa(&mut self, bus: &mut Bus) {
+    fn daa(&mut self) {
         let mut adjust = 0;
 
         if self.halfcarry() || self.carry() {
@@ -370,7 +367,7 @@ impl Cpu {
         self.set_program_counter(address);
     }
 
-    fn rlca(&mut self, bus: &mut Bus) {
+    fn rlca(&mut self) {
         let c = self.a >> 7;
         self.set_a((self.a << 1) | c);
 
@@ -419,7 +416,8 @@ impl Cpu {
     fn prefix(&mut self, bus: &mut Bus) {
         let opcode = self.next_byte(bus).unwrap();
 
-        let ((instruction, cycles), target) = parse_prefix_instruction(opcode);
+        // TODO: add cycles
+        let ((instruction, _), target) = parse_prefix_instruction(opcode);
 
         match instruction {
             Instruction::SWAP => self.swap(bus, target),
@@ -487,7 +485,7 @@ impl Cpu {
         self.set_carry(false);
     }
 
-    fn cpl(&mut self, bus: &mut Bus) {
+    fn cpl(&mut self) {
         self.set_a(!self.a);
 
         self.set_subtract(true);
@@ -531,7 +529,7 @@ impl Cpu {
             }
             ArithmeticType::Word(target) => {
                 let hl = self.hl();
-                let value = self.read_arithmetic_word_target(bus, target);
+                let value = self.read_arithmetic_word_target(target);
 
                 let (new_value, did_overflow) = self.hl().overflowing_add(value);
                 self.set_hl(new_value);
@@ -576,8 +574,8 @@ impl Cpu {
                 self.set_subtract(false);
             }
             ArithmeticType::Word(target) => {
-                let value = self.read_arithmetic_word_target(bus, target);
-                self.write_arithmetic_word_target(bus, target, value.wrapping_add(1));
+                let value = self.read_arithmetic_word_target(target);
+                self.write_arithmetic_word_target(target, value.wrapping_add(1));
             }
         }
     }
@@ -596,8 +594,8 @@ impl Cpu {
                 self.set_subtract(true);
             }
             ArithmeticType::Word(target) => {
-                let value = self.read_arithmetic_word_target(bus, target);
-                self.write_arithmetic_word_target(bus, target, value.wrapping_sub(1));
+                let value = self.read_arithmetic_word_target(target);
+                self.write_arithmetic_word_target(target, value.wrapping_sub(1));
             }
         }
     }
@@ -793,7 +791,7 @@ impl Cpu {
         }
     }
 
-    fn read_arithmetic_word_target(&mut self, bus: &mut Bus, target: ArithmeticWordTarget) -> u16 {
+    fn read_arithmetic_word_target(&mut self, target: ArithmeticWordTarget) -> u16 {
         return match target {
             ArithmeticWordTarget::BC => self.bc(),
             ArithmeticWordTarget::HL => self.hl(),
@@ -802,12 +800,7 @@ impl Cpu {
         };
     }
 
-    fn write_arithmetic_word_target(
-        &mut self,
-        bus: &mut Bus,
-        target: ArithmeticWordTarget,
-        value: u16,
-    ) {
+    fn write_arithmetic_word_target(&mut self, target: ArithmeticWordTarget, value: u16) {
         match target {
             ArithmeticWordTarget::AF => self.set_af(value),
             ArithmeticWordTarget::BC => self.set_bc(value),
@@ -831,13 +824,6 @@ impl Cpu {
         println!("Stack trace:");
         for address in (0xFFFE..self.stack_pointer).step_by(2) {
             println!("{:#X}", bus.fetch16(address).unwrap());
-        }
-    }
-
-    fn print_memory(&self, bus: &mut Bus, start_addr: u16, end_addr: u16) {
-        for address in start_addr..=end_addr {
-            let value = bus.fetch8(address).unwrap();
-            println!("{:#X}: {:#X}", address, value);
         }
     }
 }

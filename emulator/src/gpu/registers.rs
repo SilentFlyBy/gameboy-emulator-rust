@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use crate::{bus::FetchWrite, register::Register8};
 
 const PRIORITY_BITMASK: u8 = 1;
@@ -77,10 +80,10 @@ const MODE_OAM_INTERRUPT_BITMASK: u8 = 1 << 5;
 const LYC_MATCH_INTERRUPT_BITMASK: u8 = 1 << 6;
 
 pub enum Mode {
-    HBLANK = 0,
-    VBLANK = 1,
-    SCAN_OAM = 2,
-    SCAN_VRAM = 3,
+    HBlank = 0,
+    VBlank = 1,
+    ScanOam = 2,
+    ScanVram = 3,
 }
 
 pub struct STAT {
@@ -94,10 +97,10 @@ impl STAT {
 
     pub fn get_mode(&self) -> Mode {
         match self.value & MODE_BITMASK {
-            0 => Mode::HBLANK,
-            1 => Mode::VBLANK,
-            2 => Mode::SCAN_OAM,
-            3 => Mode::SCAN_VRAM,
+            0 => Mode::HBlank,
+            1 => Mode::VBlank,
+            2 => Mode::ScanOam,
+            3 => Mode::ScanVram,
             _ => panic!("Enum out of bounds"),
         }
     }

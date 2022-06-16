@@ -1,7 +1,8 @@
+#![allow(dead_code)]
 use std::io;
 
 use crate::{
-    boot::{BootRom, DMG_BOOT},
+    boot::BootRom,
     buttons::Buttons,
     cartridge::Cartridge,
     constants::{
@@ -141,7 +142,7 @@ impl<'a> FetchWrite for Bus<'a> {
         Ok(())
     }
 
-    fn write16(&mut self, address: u16, value: u16) -> std::io::Result<()> {
+    fn write16(&mut self, _: u16, _: u16) -> std::io::Result<()> {
         todo!()
     }
 }

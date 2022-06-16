@@ -24,7 +24,7 @@ impl Cartridge {
         }
     }
 
-    fn parse_header() {}
+    // fn parse_header() {}
 }
 
 impl FetchWrite for Cartridge {

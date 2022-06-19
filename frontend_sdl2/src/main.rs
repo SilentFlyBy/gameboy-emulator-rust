@@ -16,6 +16,10 @@ struct Cli {
     #[clap(value_parser)]
     file: String,
 
+    /// Path to bootrom file
+    #[clap(short, long, action)]
+    boot_rom: Option<String>,
+
     /// Print disassembly
     #[clap(short, long, action)]
     disassemble: bool,
@@ -28,10 +32,11 @@ fn main() {
     let sdl_context = frontend.get_sdl_context();
     let mut display = frontend.new_display(sdl_context);
 
-    let mut cpu = Cpu::new(cli.disassemble);
+    let skip_boot = cli.boot_rom.is_none();
+    let mut cpu = Cpu::new(skip_boot, cli.disassemble);
     let cartridge = Cartridge::new(cli.file.as_str());
     let gpu = Gpu::new(&mut display);
-    let mut bus = Bus::new(cartridge, gpu);
+    let mut bus = Bus::new(cartridge, gpu, cli.boot_rom);
 
     let (tick_tx, tick_rx) = channel();
 

@@ -25,7 +25,8 @@ pub trait FetchWrite {
 }
 
 pub struct Bus<'a> {
-    boot_rom: BootRom,
+    boot_rom: Option<BootRom>,
+    boot_rom_enabled: Register8,
     cartridge: Cartridge,
     wram: Ram,
     hram: Ram,
@@ -71,15 +72,23 @@ const HRAM_END_ADDRESS: u16 = 0xFFFE;
 
 const BUTTONS_REGISTER_ADDRESS: u16 = 0xFF00;
 
+const BOOTROM_DISABLE_REGISTER_ADDRESS: u16 = 0xFF50;
+
 impl<'a> Bus<'a> {
-    pub fn new(cartridge: Cartridge, gpu: Gpu<'a>) -> Self {
+    pub fn new(cartridge: Cartridge, gpu: Gpu<'a>, bootrom_path: Option<String>) -> Self {
         let wram = Ram::new(0x2000, WRAM_START_ADDRESS);
         let hram = Ram::new(0x7F, HRAM_START_ADDRESS);
         let serial_transfer = 0u8;
         let serial_control = 0u8;
         let spu = Spu::new();
+        let boot_rom = match bootrom_path {
+            Some(path) => Some(BootRom::new(path)),
+            None => None,
+        };
+
         Bus {
-            boot_rom: BootRom {},
+            boot_rom_enabled: if boot_rom.is_some() { 1 } else { 0 },
+            boot_rom,
             cartridge,
             wram,
             hram,
@@ -101,7 +110,13 @@ impl<'a> Bus<'a> {
 
     fn get_address_target(&mut self, address: u16) -> io::Result<&mut dyn FetchWrite> {
         match address {
-            //BOOT_ROM_START_ADDRESS..=BOOT_ROM_END_ADDRESS => Ok(&mut self.boot_rom),
+            BOOT_ROM_START_ADDRESS..=BOOT_ROM_END_ADDRESS => {
+                if self.get_boot_rom_enabled() && self.boot_rom.is_some() {
+                    Ok(self.boot_rom.as_mut().unwrap())
+                } else {
+                    Ok(&mut self.cartridge)
+                }
+            }
             ROM_START_ADDRESS..=ROM_END_ADDRESS => Ok(&mut self.cartridge),
             ERAM_START_ADDRESS..=ERAM_END_ADDRESS => Ok(&mut self.cartridge),
             WRAM_START_ADDRESS..=WRAM_END_ADDRESS => Ok(&mut self.wram),
@@ -114,11 +129,16 @@ impl<'a> Bus<'a> {
             SERIAL_TRANSFER_REGISTER_ADDRESS => Ok(&mut self.serial_transfer),
             SERIAL_CONTROL_REGISTER_ADDRESS => Ok(&mut self.serial_control),
             BUTTONS_REGISTER_ADDRESS => Ok(&mut self.buttons),
+            BOOTROM_DISABLE_REGISTER_ADDRESS => Ok(&mut self.boot_rom_enabled),
             GPU_REGISTER_START_ADDRESS..=GPU_REGISTER_END_ADDRESS => Ok(&mut self.gpu),
             SPU_REGISTER_START_ADDRESS..=SPU_REGISTER_END_ADDRESS => Ok(&mut self.spu),
             TIMER_START_ADDRESS..=TIMER_END_ADDRESS => Ok(&mut self.timer),
             _ => Ok(&mut self.null),
         }
+    }
+
+    fn get_boot_rom_enabled(&self) -> bool {
+        self.boot_rom_enabled != 0
     }
 }
 

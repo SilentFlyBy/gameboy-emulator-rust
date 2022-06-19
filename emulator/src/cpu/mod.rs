@@ -38,19 +38,35 @@ const HALFCARRY_FLAG_MASK: u8 = 1 << 5;
 const CARRY_FLAG_MASK: u8 = 1 << 4;
 
 impl Cpu {
-    pub fn new(disassemble: bool) -> Self {
-        Cpu {
-            a: 0x1,
-            b: 0x0,
-            c: 0x13,
-            d: 0x0,
-            e: 0xD8,
-            f: 0,
-            h: 0x1,
-            l: 0x4D,
-            program_counter: 0x100,
-            stack_pointer: 0xFFFE,
-            disassembler: Disassembler::new(disassemble),
+    pub fn new(skip_boot: bool, disassemble: bool) -> Self {
+        if skip_boot {
+            Cpu {
+                a: 0x1,
+                b: 0x0,
+                c: 0x13,
+                d: 0x0,
+                e: 0xD8,
+                f: 0,
+                h: 0x1,
+                l: 0x4D,
+                program_counter: 0x100,
+                stack_pointer: 0xFFFE,
+                disassembler: Disassembler::new(disassemble),
+            }
+        } else {
+            Cpu {
+                a: 0,
+                b: 0,
+                c: 0,
+                d: 0,
+                e: 0,
+                f: 0,
+                h: 0,
+                l: 0,
+                program_counter: 0,
+                stack_pointer: 0,
+                disassembler: Disassembler::new(disassemble),
+            }
         }
     }
     pub fn next(&mut self, bus: &mut Bus) -> std::io::Result<u8> {
@@ -383,25 +399,33 @@ impl Cpu {
     }
 
     fn rla(&mut self) {
-        self.set_carry(self.a & 0x80 == 0x80);
-        let r = (self.a << 1) | (if self.carry() { 1 } else { 0 });
-        self.set_a(r);
+        let a = self.a;
 
+        let newcarry = (a >> 7) != 0;
+        let oldcarry = self.carry() as u8;
+
+        self.set_a((a << 1) | oldcarry);
+
+        self.set_carry(newcarry);
         self.set_zero(false);
-        self.set_subtract(false);
         self.set_halfcarry(false);
+        self.set_subtract(false);
     }
 
     fn rl(&mut self, bus: &mut Bus, target: ArithmeticByteTarget) {
+        let carry = self.carry() as u8;
         let value = self.read_arithmetic_byte_target(bus, target);
 
-        let c = value & 0x80 == 0x80;
-        let r = (value << 1) | (if self.carry() { 1 } else { 0 });
+        self.set_carry(value & 0x80 != 0);
+
+        let result = (value << 1) | carry;
+
+        self.set_zero(result == 0);
 
         self.set_halfcarry(false);
         self.set_subtract(false);
-        self.set_zero(r == 0);
-        self.set_carry(c);
+
+        self.write_arithmetic_byte_target(bus, target, result);
     }
 
     fn bit(&mut self, bus: &mut Bus, target: ArithmeticByteTarget, n: u8) {

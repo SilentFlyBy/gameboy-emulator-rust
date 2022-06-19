@@ -272,8 +272,8 @@ impl<'a> Gpu<'a> {
 
     fn get_bg_color(&mut self, x: u8, y: u8) -> DmgColor {
         let tile_index = self.get_bg_tile_index(x, y);
-        let pixel_x = x % 8;
-        let pixel_y = y % 8;
+        let pixel_x = (x + self.scx) % 8;
+        let pixel_y = (y + self.scy) % 8;
 
         let line_pixels = self.get_bg_tile_line(tile_index, pixel_y);
 
@@ -292,6 +292,17 @@ impl<'a> Gpu<'a> {
                 }
             }
         };
+
+        /*if tile_index == 1 {
+            println!("{:#X}", tile_address);
+            for i in 0..8 {
+                println!(
+                    "{}: {:#X}",
+                    i,
+                    self.vram.fetch16(tile_address + (i * 2)).unwrap()
+                )
+            }
+        }*/
 
         let line_address = tile_address + (line as u16 * 2);
         self.vram.fetch16(line_address).unwrap()
